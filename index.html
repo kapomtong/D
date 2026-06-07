@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>📖 HW321 — การบ้านห้อง ม.1/10</title>
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0d1a;
+    --surface: #161628;
+    --surface2: #1e1e38;
+    --surface3: #252545;
+    --accent: #7c6bff;
+    --accent2: #ff6b9d;
+    --accent3: #6bffce;
+    --gold: #ffd700;
+    --silver: #c0c0c0;
+    --bronze: #cd7f32;
+    --text: #f0f0ff;
+    --text2: #9999bb;
+    --text3: #5555aa;
+    --danger: #ff4757;
+    --success: #2ed573;
+    --warn: #ffa502;
+    --radius: 16px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body { font-family:'Sarabun',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+
+  /* ── Animated BG ── */
+  body::before {
+    content:''; position:fixed; inset:0; z-index:0;
+    background: radial-gradient(ellipse at 20% 20%, rgba(124,107,255,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, rgba(255,107,157,0.10) 0%, transparent 60%),
+                radial-gradient(ellipse at 50% 50%, rgba(107,255,206,0.05) 0%, transparent 70%);
+    animation: bgShift 12s ease-in-out infinite alternate;
+    pointer-events:none;
+  }
+  @keyframes bgShift {
+    0%  { opacity:1; transform:scale(1); }
+    100%{ opacity:0.7; transform:scale(1.05); }
+  }
+
+  /* ── Screens ── */
+  .screen { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
+  .screen.hidden { display:none; }
+
+  /* ── Setup Screen ── */
+  .setup-box {
+    background:var(--surface); border-radius:28px; padding:40px 32px;
+    width:100%; max-width:380px; text-align:center;
+    box-shadow:var(--shadow), 0 0 60px rgba(124,107,255,0.15);
+    border:1px solid rgba(124,107,255,0.2);
+    animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} }
+  .setup-emoji { font-size:64px; margin-bottom:16px; display:block; animation:bounce 2s infinite; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .setup-title { font-family:'Mitr',sans-serif; font-size:26px; font-weight:700; margin-bottom:6px; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .setup-sub { color:var(--text2); font-size:14px; margin-bottom:28px; }
+  .setup-input {
+    width:100%; padding:16px 20px; border-radius:14px; border:2px solid var(--surface3);
+    background:var(--surface2); color:var(--text); font-family:'Sarabun',sans-serif; font-size:18px; font-weight:600;
+    text-align:center; outline:none; transition:border-color 0.2s;
+  }
+  .setup-input:focus { border-color:var(--accent); }
+  .setup-btn {
+    width:100%; margin-top:16px; padding:16px; border-radius:14px; border:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:white; font-family:'Mitr',sans-serif; font-size:18px; font-weight:600;
+    cursor:pointer; transition:transform 0.15s,box-shadow 0.15s;
+    box-shadow:0 4px 20px rgba(124,107,255,0.4);
+  }
+  .setup-btn:active { transform:scale(0.97); }
+  .setup-hint { margin-top:14px; font-size:12px; color:var(--text3); }
+
+  /* ── App Layout ── */
+  #app { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column; overflow:hidden; }
+  #app.hidden { display:none; }
+
+  /* ── Top Bar ── */
+  .topbar {
+    background:linear-gradient(135deg,rgba(124,107,255,0.9),rgba(255,107,157,0.7));
+    backdrop-filter:blur(20px);
+    padding:14px 18px 18px;
+    border-bottom:1px solid rgba(255,255,255,0.1);
+    flex-shrink:0;
+  }
+  .topbar-row1 { display:flex; justify-content:space-between; align-items:center; }
+  .topbar-title { font-family:'Mitr',sans-serif; font-size:18px; font-weight:700; }
+  .topbar-user { display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.25); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:600; }
+  .topbar-avatar { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,var(--accent3),var(--accent)); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+  .topbar-stats { display:flex; gap:10px; margin-top:10px; }
+  .stat-chip { background:rgba(0,0,0,0.25); border-radius:10px; padding:5px 12px; font-size:12px; font-weight:600; }
+
+  /* ── Tab bar ── */
+  .tabbar {
+    display:flex; background:var(--surface); border-top:1px solid var(--surface2);
+    padding:8px 12px 12px; gap:4px; flex-shrink:0;
+  }
+  .tab-btn {
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 4px; border:none; border-radius:14px; background:transparent;
+    color:var(--text3); font-family:'Sarabun',sans-serif; font-size:10px; font-weight:600;
+    cursor:pointer; transition:all 0.2s; position:relative;
+  }
+  .tab-btn .tab-icon { font-size:20px; transition:transform 0.2s; }
+  .tab-btn.active { background:linear-gradient(135deg,rgba(124,107,255,0.25),rgba(255,107,157,0.15)); color:var(--accent); }
+  .tab-btn.active .tab-icon { transform:scale(1.15); }
+  .tab-badge { position:absolute; top:4px; right:calc(50% - 18px); background:var(--danger); color:white; border-radius:10px; padding:1px 6px; font-size:9px; font-weight:800; }
+
+  /* ── Content ── */
+  .content { flex:1; overflow-y:auto; padding:16px; }
+  .page { display:none; animation:fadeSlide 0.25s ease; }
+  .page.active { display:block; }
+  @keyframes fadeSlide { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Cards ── */
+  .card { background:var(--surface); border-radius:var(--radius); padding:18px; margin-bottom:14px; border:1px solid var(--surface2); }
+  .card-title { font-size:15px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; color:var(--text); }
+
+  /* ── Summary Widget ── */
+  .widget-dark {
+    background:linear-gradient(135deg,var(--surface2),var(--surface3));
+    border-radius:20px; padding:20px; margin-bottom:14px;
+    border:1px solid rgba(124,107,255,0.2);
+    box-shadow:0 4px 24px rgba(0,0,0,0.3);
+  }
+  .widget-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+  .widget-label { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
+  .widget-pct { font-family:'Mitr',sans-serif; font-size:28px; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .progress-bar { background:var(--surface); border-radius:8px; height:10px; overflow:hidden; margin-bottom:16px; }
+  .progress-fill { height:100%; border-radius:8px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .widget-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .wstat { background:rgba(0,0,0,0.3); border-radius:12px; padding:10px 6px; text-align:center; }
+  .wstat-val { font-family:'Mitr',sans-serif; font-size:20px; font-weight:700; }
+  .wstat-label { font-size:9px; color:var(--text2); margin-top:2px; }
+  .add-hw-btn {
+    width:100%; margin-top:14px; padding:13px; border-radius:14px; border:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:white; font-family:'Mitr',sans-serif; font-size:15px; font-weight:600;
+    cursor:pointer; transition:transform 0.15s; box-shadow:0 4px 16px rgba(124,107,255,0.35);
+  }
+  .add-hw-btn:active { transform:scale(0.97); }
+
+  /* ── HW Card ── */
+  .hw-card {
+    background:var(--surface2); border-radius:14px; padding:14px; margin-bottom:10px;
+    display:flex; gap:12px; align-items:flex-start;
+    border:1px solid var(--surface3); transition:all 0.2s;
+    border-left:4px solid var(--accent);
+  }
+  .hw-card.done { opacity:0.5; border-left-color:var(--success); }
+  .hw-card.urgent { border-left-color:var(--danger); }
+  .hw-card.warn { border-left-color:var(--warn); }
+  .hw-check {
+    width:24px; height:24px; border-radius:8px; border:2px solid var(--surface3);
+    background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; margin-top:2px; transition:all 0.2s;
+  }
+  .hw-check.checked { background:var(--success); border-color:var(--success); }
+  .hw-subject { font-size:11px; font-weight:700; color:var(--accent); margin-bottom:3px; }
+  .hw-detail { font-size:14px; font-weight:600; color:var(--text); word-break:break-word; }
+  .hw-detail.striked { text-decoration:line-through; color:var(--text3); }
+  .hw-note { font-size:11px; color:var(--text2); margin-top:3px; }
+  .hw-due { font-size:11px; font-weight:700; margin-top:5px; }
+  .hw-actions { display:flex; gap:6px; flex-shrink:0; }
+  .hw-action-btn { background:var(--surface3); border:none; border-radius:8px; padding:6px 9px; cursor:pointer; font-size:14px; transition:background 0.15s; }
+  .hw-action-btn:hover { background:rgba(124,107,255,0.3); }
+
+  /* ── Subject chips ── */
+  .subject-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .sub-chip { background:var(--surface2); border:1px solid var(--surface3); border-radius:10px; padding:5px 12px; font-size:12px; font-weight:600; color:var(--text2); }
+
+  /* ── Leaderboard ── */
+  .lb-item {
+    display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px;
+    background:var(--surface2); margin-bottom:8px; border:1px solid var(--surface3);
+    transition:all 0.2s;
+  }
+  .lb-item.me { border-color:var(--accent); background:rgba(124,107,255,0.1); }
+  .lb-rank { font-family:'Mitr',sans-serif; font-size:20px; font-weight:700; width:36px; text-align:center; }
+  .lb-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; flex-shrink:0; }
+  .lb-name { flex:1; font-size:15px; font-weight:700; }
+  .lb-score { font-family:'Mitr',sans-serif; font-size:18px; font-weight:700; color:var(--accent3); }
+  .lb-bar-wrap { background:var(--surface3); border-radius:6px; height:6px; margin-top:4px; }
+  .lb-bar { height:6px; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent3)); }
+  .lb-hw-list { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .lb-hw-done { background:rgba(46,213,115,0.2); border:1px solid var(--success); border-radius:6px; padding:2px 8px; font-size:10px; color:var(--success); font-weight:600; }
+  .lb-hw-pending { background:rgba(124,107,255,0.15); border:1px solid var(--accent); border-radius:6px; padding:2px 8px; font-size:10px; color:var(--accent); font-weight:600; }
+
+  /* ── Admin Panel ── */
+  .admin-badge { background:linear-gradient(135deg,#ffd700,#ff8c00); color:#000; border-radius:8px; padding:2px 10px; font-size:11px; font-weight:800; }
+  .admin-section { margin-bottom:20px; }
+  .admin-user-card {
+    background:var(--surface2); border-radius:14px; padding:14px; margin-bottom:8px;
+    border:1px solid var(--surface3); cursor:pointer; transition:all 0.2s;
+  }
+  .admin-user-card:hover { border-color:var(--accent); }
+  .admin-user-row { display:flex; align-items:center; gap:10px; }
+  .admin-user-name { flex:1; font-size:15px; font-weight:700; }
+  .admin-user-stats { font-size:12px; color:var(--text2); margin-top:4px; }
+
+  /* ── FAB ── */
+  .fab {
+    position:fixed; bottom:90px; right:18px; z-index:50;
+    width:56px; height:56px; border-radius:50%; border:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:white; font-size:28px; cursor:pointer;
+    box-shadow:0 6px 24px rgba(124,107,255,0.5);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.2s; animation:fabPulse 3s infinite;
+  }
+  .fab:active { transform:scale(0.92); }
+  @keyframes fabPulse { 0%,100%{box-shadow:0 6px 24px rgba(124,107,255,0.5)} 50%{box-shadow:0 6px 32px rgba(124,107,255,0.8)} }
+  .fab.hidden { display:none; }
+
+  /* ── Modal ── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:flex-end; backdrop-filter:blur(6px); }
+  .modal-overlay.center { align-items:center; justify-content:center; padding:20px; }
+  .modal-box { background:var(--surface); border-radius:24px 24px 0 0; padding:28px 20px 36px; width:100%; max-height:90vh; overflow-y:auto; animation:slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+  .modal-box.center-box { border-radius:24px; max-width:340px; padding:28px 24px; animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal-title { font-family:'Mitr',sans-serif; font-size:18px; font-weight:700; margin-bottom:18px; }
+  .modal-overlay.hidden { display:none; }
+  .form-label { font-size:12px; color:var(--text3); font-weight:700; display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+  .form-input {
+    width:100%; padding:13px 16px; border-radius:12px; border:1.5px solid var(--surface3);
+    background:var(--surface2); color:var(--text); font-family:'Sarabun',sans-serif; font-size:14px;
+    margin-bottom:12px; outline:none; transition:border-color 0.2s;
+  }
+  .form-input:focus { border-color:var(--accent); }
+  .form-select { width:100%; padding:13px 16px; border-radius:12px; border:1.5px solid var(--surface3); background:var(--surface2); color:var(--text); font-family:'Sarabun',sans-serif; font-size:14px; margin-bottom:12px; outline:none; }
+  .form-textarea { resize:none; height:80px; }
+  .btn-primary {
+    width:100%; padding:14px; border-radius:14px; border:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:white; font-family:'Mitr',sans-serif; font-size:16px; font-weight:600;
+    cursor:pointer; margin-top:6px; transition:transform 0.15s;
+    box-shadow:0 4px 16px rgba(124,107,255,0.3);
+  }
+  .btn-primary:active { transform:scale(0.97); }
+  .btn-secondary { width:100%; padding:13px; border-radius:14px; border:1.5px solid var(--surface3); background:transparent; color:var(--text2); font-family:'Mitr',sans-serif; font-size:15px; font-weight:600; cursor:pointer; margin-top:8px; }
+  .btn-danger { background:linear-gradient(135deg,var(--danger),#ff2d55); box-shadow:0 4px 16px rgba(255,71,87,0.3); }
+
+  /* ── Toast ── */
+  .toast { position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:var(--surface2); color:var(--text); border-radius:14px; padding:12px 24px; font-size:14px; font-weight:600; z-index:999; border:1px solid var(--surface3); box-shadow:var(--shadow); white-space:nowrap; animation:toastIn 0.3s ease; }
+  @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+  .toast.hidden { display:none; }
+
+  /* ── Misc ── */
+  .empty-state { text-align:center; padding:40px 20px; color:var(--text3); }
+  .empty-icon { font-size:48px; margin-bottom:12px; }
+  .empty-text { font-size:14px; }
+  .section-divider { font-size:12px; color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:1px; margin:16px 0 10px; padding:0 4px; }
+  .loading { text-align:center; padding:40px; color:var(--text3); font-size:14px; }
+  .day-badge { display:inline-block; background:var(--surface3); border-radius:8px; padding:3px 10px; font-size:11px; font-weight:700; color:var(--text2); margin-bottom:10px; }
+  .streak-banner { background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,140,0,0.1)); border:1px solid rgba(255,215,0,0.3); border-radius:14px; padding:14px 16px; margin-bottom:14px; display:flex; align-items:center; gap:12px; }
+  .streak-num { font-family:'Mitr',sans-serif; font-size:32px; font-weight:700; color:var(--gold); }
+  .xp-bar-wrap { background:var(--surface3); border-radius:6px; height:8px; margin-top:6px; overflow:hidden; }
+  .xp-bar { height:8px; border-radius:6px; background:linear-gradient(90deg,var(--gold),var(--warn)); transition:width 0.6s; }
+
+  /* ── Schedule grid ── */
+  .sch-day { margin-bottom:16px; }
+  .sch-day-title { font-size:13px; font-weight:700; color:var(--accent); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .sch-chip { background:var(--surface2); border-radius:10px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--surface3); }
+  .sch-chip-name { font-size:13px; font-weight:700; }
+  .sch-chip-detail { font-size:11px; color:var(--text2); }
+
+  /* ── Confirm ── */
+  .confirm-icon { font-size:48px; text-align:center; margin-bottom:12px; }
+  .confirm-msg { font-size:15px; font-weight:600; text-align:center; color:var(--text); margin-bottom:24px; }
+
+  @media(max-width:400px) { .widget-grid { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+
+<!-- Setup Screen -->
+<div class="screen" id="setupScreen">
+  <div class="setup-box">
+    <span class="setup-emoji">📖</span>
+    <div class="setup-title">HW321</div>
+    <div class="setup-sub">การบ้านห้อง ม.1/10 · ยินดีต้อนรับ!</div>
+    <input class="setup-input" id="nameInput" placeholder="ตั้งชื่อเล่นของคุณ" maxlength="20" autocomplete="off"/>
+    <button class="setup-btn" onclick="submitName()">เข้าสู่ระบบ ✨</button>
+    <div class="setup-hint">💡 ถ้าชื่อ "admin" จะเข้าโหมดผู้ดูแลอัตโนมัติ</div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-row1">
+      <div class="topbar-title">📖 HW321</div>
+      <div class="topbar-user" id="topbarUser" onclick="openUserMenu()" style="cursor:pointer;user-select:none">
+        <div class="topbar-avatar" id="topbarAvatar">?</div>
+        <span id="topbarName">-</span>
+        <span style="font-size:10px;opacity:0.6">▼</span>
+      </div>
+    </div>
+    <div class="topbar-stats" id="topbarStats"></div>
+  </div>
+
+  <!-- Content -->
+  <div class="content" id="mainContent">
+    <!-- Today Page -->
+    <div class="page active" id="pageTaday">
+      <div id="todayWidget"></div>
+      <div id="todaySubjects"></div>
+      <div id="urgentSection"></div>
+      <div id="todayHWSection"></div>
+    </div>
+    <!-- All HW Page -->
+    <div class="page" id="pageAll">
+      <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px" id="hwFilterBtns"></div>
+      <input class="form-input" id="hwSearch" placeholder="🔍 ค้นหาการบ้าน..." oninput="renderAllHW()" style="margin-bottom:10px"/>
+      <div id="allHWList"></div>
+    </div>
+    <!-- Leaderboard Page -->
+    <div class="page" id="pageLeader">
+      <div class="card-title" style="margin-bottom:16px">🏆 กระดาน Top ผู้ทำการบ้าน</div>
+      <div id="leaderboardList"></div>
+    </div>
+    <!-- Schedule Page -->
+    <div class="page" id="pageSchedule">
+      <div id="scheduleView"></div>
+    </div>
+    <!-- Admin Page -->
+    <div class="page" id="pageAdmin">
+      <div id="adminPanel"></div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tabbar" id="tabbar">
+    <button class="tab-btn active" onclick="switchTab('today',this)" data-page="pageTaday">
+      <span class="tab-icon">🏠</span><span>วันนี้</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('all',this)" data-page="pageAll">
+      <span class="tab-icon">📚</span><span>การบ้าน</span>
+      <span class="tab-badge hidden" id="badgeAll"></span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('leader',this)" data-page="pageLeader">
+      <span class="tab-icon">🏆</span><span>อันดับ</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('schedule',this)" data-page="pageSchedule">
+      <span class="tab-icon">🗓️</span><span>ตาราง</span>
+    </button>
+    <button class="tab-btn hidden" id="adminTab" onclick="switchTab('admin',this)" data-page="pageAdmin">
+      <span class="tab-icon">⚙️</span><span>Admin</span>
+    </button>
+  </div>
+</div>
+
+<!-- Modal: User Menu -->
+<div class="modal-overlay center hidden" id="modalUserMenu">
+  <div class="modal-box center-box" style="text-align:center">
+    <div id="userMenuAvatar" style="width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700"></div>
+    <div id="userMenuName" style="font-family:'Mitr',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px"></div>
+    <div id="userMenuRole" style="font-size:13px;color:var(--text2);margin-bottom:24px"></div>
+    <button class="btn-primary btn-danger" onclick="doLogout()" style="margin-bottom:0">🚪 ออกจากระบบ</button>
+    <button class="btn-secondary" onclick="closeModal('modalUserMenu')">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab hidden" id="fabBtn" onclick="openAddHW()">＋</button>
+
+<!-- Modal: Add/Edit HW -->
+<div class="modal-overlay hidden" id="modalHW">
+  <div class="modal-box">
+    <div class="modal-title" id="modalHWTitle">📝 เพิ่มการบ้านใหม่</div>
+    <input type="hidden" id="editHWId"/>
+    <label class="form-label">วิชา</label>
+    <select class="form-select" id="hwSubject"></select>
+    <div id="customSubjectWrap" style="display:none">
+      <label class="form-label">ชื่อวิชา (พิมพ์เอง)</label>
+      <input class="form-input" id="hwSubjectCustom" placeholder="เช่น คณิตศาสตร์"/>
+    </div>
+    <label class="form-label">รายละเอียดการบ้าน *</label>
+    <textarea class="form-input form-textarea" id="hwDetail" placeholder="เช่น ทำแบบฝึกหัดหน้า 45–48"></textarea>
+    <label class="form-label">วันกำหนดส่ง</label>
+    <input type="date" class="form-input" id="hwDueDate"/>
+    <label class="form-label">หมายเหตุ</label>
+    <input class="form-input" id="hwNote" placeholder="เช่น ส่งในสมุด / Google Classroom"/>
+    <div id="adminTargetWrap" style="display:none">
+      <label class="form-label">มอบหมายให้</label>
+      <select class="form-select" id="hwTarget">
+        <option value="all">📢 ทุกคนในห้อง</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="saveHW()">✅ บันทึก</button>
+    <button class="btn-secondary" onclick="closeModal('modalHW')">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- Modal: Confirm -->
+<div class="modal-overlay center hidden" id="modalConfirm">
+  <div class="modal-box center-box">
+    <div class="confirm-icon" id="confirmIcon">⚠️</div>
+    <div class="confirm-msg" id="confirmMsg">แน่ใจไหม?</div>
+    <button class="btn-primary btn-danger" id="confirmOkBtn">ยืนยัน</button>
+    <button class="btn-secondary" onclick="closeModal('modalConfirm')">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- Modal: User Detail (Admin) -->
+<div class="modal-overlay hidden" id="modalUserDetail">
+  <div class="modal-box">
+    <div class="modal-title" id="userDetailTitle"></div>
+    <div id="userDetailContent"></div>
+    <button class="btn-secondary" onclick="closeModal('modalUserDetail')">ปิด</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast hidden" id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, push, remove, update, onValue, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAkCeCfrqjO72TvVq5vl9jePRYgcVqKynw",
+  authDomain: "game-43a01.firebaseapp.com",
+  databaseURL: "https://game-43a01-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "game-43a01",
+  storageBucket: "game-43a01.firebasestorage.app",
+  messagingSenderId: "525963541473",
+  appId: "1:525963541473:web:e789de7c7d54c9550cf0a0"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+
+// ──────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────
+let currentUser = null; // { name, isAdmin, uid }
+let allHomeworks = {}; // Firebase snapshot of hw321/homeworks
+let allUsers = {};     // Firebase snapshot of hw321/users
+let hwFilter = "pending";
+let activeTab = "today";
+let confirmCallback = null;
+let editingHWId = null;
+
+const ADMIN_NAMES = ["admin"];
+const COLORS = ["#7c6bff","#ff6b9d","#6bffce","#ffd700","#ff8c00","#00d2ff","#ff5f6d","#43e97b"];
+const avatarColor = (name) => COLORS[name.charCodeAt(0) % COLORS.length];
+const initials = (name) => name ? name[0].toUpperCase() : "?";
+
+const DAYS = ["จ.","อ.","พ.","พฤ.","ศ."];
+const DAY_FULL = ["จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์"];
+const SCHEDULE = {
+  "จ.": [{code:"ส21103",name:"สังคมศึกษา",teacher:"ครูอารีวร",room:"321",period:"1"},{code:"แนะแนว",name:"แนะแนว",teacher:"ครูธนาธิ",room:"321",period:"2"},{code:"ว20271",name:"วิทยาศาสตร์",teacher:"3 ท่าน",room:"222",period:"5-6"},{code:"ร21103",name:"สุขศึกษา",teacher:"ครูสุจิตร",room:"541",period:"7-8"}],
+  "อ.": [{code:"อ21101",name:"ภาษาอังกฤษ",teacher:"ครูพีรัสมิ์",room:"321",period:"1"},{code:"ส21101",name:"สังคมศึกษา",teacher:"ครูเกศินี",room:"321",period:"2"},{code:"พ21101",name:"พลศึกษา",teacher:"ครูจิรายุ",room:"321",period:"3"},{code:"ท21101",name:"ภาษาไทย",teacher:"ครูปาริชา",room:"321",period:"6"},{code:"ค21202",name:"คณิตศาสตร์เพิ่มเติม",teacher:"ครูอรธิณี",room:"321",period:"7"}],
+  "พ.": [{code:"ว21101",name:"วิทยาศาสตร์",teacher:"ครูณัฎฐกิ",room:"612",period:"1-2"},{code:"อ21101",name:"ภาษาอังกฤษ",teacher:"ครูพีรัสมิ์",room:"321",period:"3"},{code:"ศ21102",name:"ศิลปะ",teacher:"ครูวิสุทธิ์",room:"413",period:"5"},{code:"ค21101",name:"คณิตศาสตร์",teacher:"ครูพณาว",room:"321",period:"6"},{code:"ท21101",name:"ภาษาไทย",teacher:"ครูปาริชา",room:"321",period:"7"}],
+  "พฤ.": [{code:"พ21102",name:"พลศึกษา",teacher:"ครูพิสุทธิ์",room:"ทีพี2",period:"1"},{code:"ส21101",name:"สังคมศึกษา",teacher:"ครูเกศินี",room:"321",period:"2"},{code:"ค21101",name:"คณิตศาสตร์",teacher:"ครูพณาว",room:"321",period:"3"},{code:"ง33101",name:"การงานอาชีพ",teacher:"ครูพงษ์เอ",room:"อส.1",period:"5"}],
+  "ศ.": [{code:"อ21101",name:"ภาษาอังกฤษ",teacher:"ครูพีรัสมิ์",room:"321",period:"1"},{code:"ท21101",name:"ภาษาไทย",teacher:"ครูปาริชา",room:"321",period:"2"},{code:"ว21101",name:"วิทยาศาสตร์",teacher:"ครูณัฎฐกิ",room:"612",period:"3"},{code:"ค21101",name:"คณิตศาสตร์",teacher:"ครูพณาว",room:"321",period:"5"},{code:"ค21202",name:"คณิตศาสตร์เพิ่มเติม",teacher:"ครูอรธิณี",room:"321",period:"6"},{code:"ส21101",name:"สังคมศึกษา",teacher:"ครูจิรปรี",room:"เรือนไทย",period:"7"}],
+};
+
+const getAllSubjects = () => {
+  const seen = new Set(), list = [];
+  Object.values(SCHEDULE).flat().forEach(s => { if(!seen.has(s.code)){seen.add(s.code);list.push(s);} });
+  return list.sort((a,b)=>a.name.localeCompare(b.name,"th"));
+};
+
+// ──────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────
+const getDaysUntil = (ds) => {
+  if (!ds) return null;
+  const t=new Date();t.setHours(0,0,0,0);
+  const d=new Date(ds);d.setHours(0,0,0,0);
+  return Math.ceil((d-t)/86400000);
+};
+const fmt = (ds) => ds ? new Date(ds).toLocaleDateString("th-TH",{day:"numeric",month:"short"}) : "";
+const getTodayKey = () => ({1:"จ.",2:"อ.",3:"พ.",4:"พฤ.",5:"ศ."}[new Date().getDay()]||null);
+
+window.showToast = (msg, dur=2200) => {
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.remove("hidden");
+  setTimeout(()=>t.classList.add("hidden"),dur);
+};
+
+window.closeModal = (id) => document.getElementById(id).classList.add("hidden");
+
+window.confirmAction = (msg, icon, cb) => {
+  document.getElementById("confirmMsg").textContent=msg;
+  document.getElementById("confirmIcon").textContent=icon||"⚠️";
+  confirmCallback=cb;
+  document.getElementById("modalConfirm").classList.remove("hidden");
+};
+document.getElementById("confirmOkBtn").onclick = () => {
+  closeModal("modalConfirm"); if(confirmCallback) confirmCallback();
+};
+
+// ──────────────────────────────────────────
+// SETUP
+// ──────────────────────────────────────────
+window.submitName = async () => {
+  const name = document.getElementById("nameInput").value.trim();
+  if (!name) { showToast("⚠️ กรุณาใส่ชื่อก่อนนะ"); return; }
+  const isAdmin = ADMIN_NAMES.includes(name.toLowerCase());
+  const uid = "u_" + name.toLowerCase().replace(/\s+/g,"_");
+  currentUser = { name, isAdmin, uid };
+  localStorage.setItem("hw321_user", JSON.stringify(currentUser));
+
+  // Save to Firebase
+  await set(ref(db, `hw321/users/${uid}`), {
+    name, isAdmin, uid, lastSeen: Date.now()
+  });
+
+  enterApp();
+};
+
+const enterApp = () => {
+  document.getElementById("setupScreen").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+
+  // Setup topbar
+  document.getElementById("topbarName").textContent = currentUser.name + (currentUser.isAdmin ? " 👑" : "");
+  const av = document.getElementById("topbarAvatar");
+  av.textContent = initials(currentUser.name);
+  av.style.background = `linear-gradient(135deg,${avatarColor(currentUser.name)},${avatarColor(currentUser.name+"x")})`;
+
+  // Admin tab
+  if (currentUser.isAdmin) {
+    document.getElementById("adminTab").classList.remove("hidden");
+  }
+
+  // Listen to Firebase
+  listenHomeworks();
+  listenUsers();
+  updateLastSeen();
+};
+
+const updateLastSeen = () => {
+  if (!currentUser) return;
+  update(ref(db, `hw321/users/${currentUser.uid}`), { lastSeen: Date.now() });
+};
+
+// ──────────────────────────────────────────
+// FIREBASE LISTENERS
+// ──────────────────────────────────────────
+const listenHomeworks = () => {
+  onValue(ref(db,"hw321/homeworks"), snap => {
+    allHomeworks = snap.val() || {};
+    renderCurrentPage();
+    updateBadge();
+  });
+};
+
+const listenUsers = () => {
+  onValue(ref(db,"hw321/users"), snap => {
+    allUsers = snap.val() || {};
+    if (activeTab==="leader") renderLeaderboard();
+    if (activeTab==="admin" && currentUser.isAdmin) renderAdmin();
+    updateTopbarStats();
+  });
+};
+
+// ──────────────────────────────────────────
+// MY HW LOGIC
+// ──────────────────────────────────────────
+const getMyHW = () => {
+  // HW assigned to "all" or specifically to me
+  return Object.entries(allHomeworks)
+    .filter(([id,hw]) => hw.target==="all" || hw.target===currentUser.uid)
+    .map(([id,hw]) => ({...hw, id}))
+    .sort((a,b) => {
+      if (!a.dueDate&&!b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate)-new Date(b.dueDate);
+    });
+};
+
+const getMyDone = () => {
+  // done status stored per user: hw321/done/{uid}/{hwId}
+  return {};
+};
+
+// Done stored at hw321/done/{uid}/{hwId} = true/false
+let myDoneMap = {};
+const listenDone = () => {
+  if (!currentUser) return;
+  onValue(ref(db,`hw321/done/${currentUser.uid}`), snap => {
+    myDoneMap = snap.val() || {};
+    renderCurrentPage();
+    updateBadge();
+  });
+};
+
+// ──────────────────────────────────────────
+// RENDER HELPERS
+// ──────────────────────────────────────────
+const updateBadge = () => {
+  const pending = getMyHW().filter(hw=>!myDoneMap[hw.id]).length;
+  const b=document.getElementById("badgeAll");
+  if(pending>0){b.textContent=pending;b.classList.remove("hidden");}
+  else b.classList.add("hidden");
+};
+
+const updateTopbarStats = () => {
+  const myHW = getMyHW();
+  const done = myHW.filter(h=>myDoneMap[h.id]).length;
+  const total = myHW.length;
+  const onlineCount = Object.values(allUsers).filter(u=>Date.now()-u.lastSeen<300000).length;
+  document.getElementById("topbarStats").innerHTML = `
+    <div class="stat-chip">📝 ค้าง ${total-done}</div>
+    <div class="stat-chip">✅ ทำแล้ว ${done}</div>
+    <div class="stat-chip">🟢 ออนไลน์ ${onlineCount}</div>
+  `;
+};
+
+const renderCurrentPage = () => {
+  if (activeTab==="today") renderToday();
+  else if (activeTab==="all") renderAllHW();
+  else if (activeTab==="leader") renderLeaderboard();
+  else if (activeTab==="admin"&&currentUser.isAdmin) renderAdmin();
+  updateTopbarStats();
+};
+
+// ──────────────────────────────────────────
+// HW CARD HTML
+// ──────────────────────────────────────────
+const hwCardHTML = (hw, showActions=true) => {
+  const done = myDoneMap[hw.id];
+  const dl = getDaysUntil(hw.dueDate);
+  let urgentClass = "";
+  let dueHTML = "";
+  if (hw.dueDate) {
+    if (dl<0) { dueHTML=`<div class="hw-due" style="color:var(--text3)">📅 ${fmt(hw.dueDate)} · ❌ เกินกำหนด</div>`; urgentClass="done"; }
+    else if (dl===0) { dueHTML=`<div class="hw-due" style="color:var(--danger)">📅 ${fmt(hw.dueDate)} · 🔴 วันนี้!</div>`; urgentClass="urgent"; }
+    else if (dl<=2) { dueHTML=`<div class="hw-due" style="color:var(--warn)">📅 ${fmt(hw.dueDate)} · ⚠️ อีก ${dl} วัน</div>`; urgentClass="warn"; }
+    else dueHTML=`<div class="hw-due" style="color:var(--text3)">📅 ${fmt(hw.dueDate)} · อีก ${dl} วัน</div>`;
+  }
+  const actions = currentUser.isAdmin ? `
+    <div class="hw-actions">
+      <button class="hw-action-btn" onclick="openEditHW('${hw.id}')" title="แก้ไข">✏️</button>
+      <button class="hw-action-btn" onclick="deleteHW('${hw.id}')" title="ลบ">🗑️</button>
+    </div>` : "";
+  return `
+    <div class="hw-card ${done?"done":urgentClass}" id="hwcard_${hw.id}">
+      <div class="hw-check ${done?"checked":""}" onclick="toggleDone('${hw.id}')">
+        ${done?'<span style="color:white;font-size:14px;font-weight:700">✓</span>':""}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="hw-subject">${hw.subjectCode||hw.subject||"วิชาทั่วไป"}</div>
+        <div class="hw-detail ${done?"striked":""}">${hw.detail}</div>
+        ${hw.note?`<div class="hw-note">💬 ${hw.note}</div>`:""}
+        ${dueHTML}
+        ${hw.addedBy?`<div class="hw-note" style="margin-top:4px">👤 โดย: ${hw.addedBy}</div>`:""}
+      </div>
+      ${actions}
+    </div>`;
+};
+
+// ──────────────────────────────────────────
+// TODAY PAGE
+// ──────────────────────────────────────────
+const renderToday = () => {
+  const myHW = getMyHW();
+  const done = myHW.filter(h=>myDoneMap[h.id]).length;
+  const total = myHW.length;
+  const pct = total>0?Math.round(done/total*100):0;
+  const urgent = myHW.filter(h=>!myDoneMap[h.id]&&h.dueDate&&getDaysUntil(h.dueDate)<=2&&getDaysUntil(h.dueDate)>=0);
+  const overdue = myHW.filter(h=>!myDoneMap[h.id]&&h.dueDate&&getDaysUntil(h.dueDate)<0);
+
+  // Widget
+  document.getElementById("todayWidget").innerHTML = `
+    <div class="widget-dark">
+      <div class="widget-top">
+        <div>
+          <div class="widget-label">📊 รายงานการบ้าน</div>
+          <div class="widget-pct">ทำแล้ว ${pct}%</div>
+        </div>
+        <div style="position:relative;width:60px;height:60px">
+          <svg viewBox="0 0 60 60" style="transform:rotate(-90deg);width:60px;height:60px">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+            <circle cx="30" cy="30" r="24" fill="none" stroke="url(#g1)" stroke-width="7"
+              stroke-dasharray="${2*Math.PI*24}" stroke-dashoffset="${2*Math.PI*24*(1-pct/100)}"
+              stroke-linecap="round"/>
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#7c6bff"/><stop offset="100%" stop-color="#ff6b9d"/>
+            </linearGradient></defs>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text)">${pct}%</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="widget-grid">
+        <div class="wstat"><div class="wstat-val" style="color:var(--text)">${total}</div><div class="wstat-label">ทั้งหมด</div></div>
+        <div class="wstat"><div class="wstat-val" style="color:#ff6b9d">${total-done}</div><div class="wstat-label">ค้างอยู่</div></div>
+        <div class="wstat"><div class="wstat-val" style="color:var(--warn)">${urgent.length}</div><div class="wstat-label">ด่วน!</div></div>
+        <div class="wstat"><div class="wstat-val" style="color:var(--danger)">${overdue.length}</div><div class="wstat-label">เกินกำหนด</div></div>
+      </div>
+      ${currentUser.isAdmin ? `<button class="add-hw-btn" onclick="openAddHW()">➕ เพิ่มการบ้านใหม่</button>` : ""}
+    </div>`;
+
+  // Today subjects
+  const todayKey = getTodayKey();
+  const isWeekend = !todayKey;
+  if (!isWeekend) {
+    const todaySubs = SCHEDULE[todayKey]||[];
+    document.getElementById("todaySubjects").innerHTML = `
+      <div class="card">
+        <div class="card-title">📅 วิชาวัน${DAY_FULL[DAYS.indexOf(todayKey)]}</div>
+        <div class="subject-chips">
+          ${todaySubs.map(s=>`<div class="sub-chip">${s.name} <span style="opacity:0.5;font-size:10px">คาบ${s.period}</span></div>`).join("")}
+        </div>
+      </div>`;
+  } else {
+    document.getElementById("todaySubjects").innerHTML = `
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:36px;margin-bottom:8px">🏖️</div>
+        <div style="font-weight:700;color:var(--text2)">วันหยุดสุดสัปดาห์</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:4px">ทำการบ้านได้นะ ไม่ต้องรอวันจันทร์!</div>
+      </div>`;
+  }
+
+  // Urgent
+  if (urgent.length>0) {
+    document.getElementById("urgentSection").innerHTML = `
+      <div class="section-divider">⚡ ด่วน! ใกล้ครบกำหนด</div>
+      ${urgent.map(hw=>hwCardHTML(hw)).join("")}`;
+  } else document.getElementById("urgentSection").innerHTML="";
+
+  // Today's HW or all pending on weekend
+  const todayCodes = todayKey ? [...new Set((SCHEDULE[todayKey]||[]).map(s=>s.code))] : [];
+  const relevant = isWeekend
+    ? myHW.filter(h=>!myDoneMap[h.id])
+    : myHW.filter(h=>!myDoneMap[h.id]&&todayCodes.includes(h.subjectCode));
+
+  document.getElementById("todayHWSection").innerHTML = `
+    <div class="section-divider">${isWeekend?"📋 การบ้านค้างทั้งหมด":"📝 การบ้านวิชาวันนี้"}</div>
+    ${relevant.length===0
+      ? `<div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-text">${isWeekend?"ไม่มีการบ้านค้างเลย!":"ไม่มีการบ้านวิชาวันนี้"}</div></div>`
+      : relevant.map(hw=>hwCardHTML(hw)).join("")}`;
+};
+
+// ──────────────────────────────────────────
+// ALL HW PAGE
+// ──────────────────────────────────────────
+window.renderAllHW = () => {
+  const q = (document.getElementById("hwSearch")||{value:""}).value.toLowerCase();
+  const myHW = getMyHW();
+  let list = myHW.filter(hw => {
+    const matchF = hwFilter==="all" ? true : hwFilter==="pending" ? !myDoneMap[hw.id] : myDoneMap[hw.id];
+    const matchQ = !q || (hw.detail+hw.subjectCode+hw.note).toLowerCase().includes(q);
+    return matchF && matchQ;
+  });
+
+  // filter buttons
+  document.getElementById("hwFilterBtns").innerHTML = [["pending","📝 ค้างอยู่"],["done","✅ ทำแล้ว"],["all","📋 ทั้งหมด"]].map(([v,l])=>
+    `<button onclick="setHWFilter('${v}')" style="padding:8px 16px;border-radius:12px;border:none;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0;background:${hwFilter===v?"linear-gradient(135deg,var(--accent),var(--accent2))":"var(--surface)"};color:${hwFilter===v?"white":"var(--text2)"}">${l}</button>`
+  ).join("");
+
+  document.getElementById("allHWList").innerHTML = list.length===0
+    ? `<div class="empty-state"><div class="empty-icon">${hwFilter==="pending"?"🎉":"📭"}</div><div class="empty-text">${hwFilter==="pending"?"ไม่มีการบ้านค้าง!":"ยังไม่มีรายการ"}</div></div>`
+    : list.map(hw=>hwCardHTML(hw)).join("");
+};
+
+window.setHWFilter = (v) => { hwFilter=v; renderAllHW(); };
+
+// ──────────────────────────────────────────
+// LEADERBOARD
+// ──────────────────────────────────────────
+const renderLeaderboard = () => {
+  const allHWList = Object.entries(allHomeworks)
+    .filter(([id,hw])=>hw.target==="all")
+    .map(([id,hw])=>({...hw,id}));
+
+  // Build scores for each user
+  const scores = Object.values(allUsers).map(user => {
+    const doneRef = `hw321/done/${user.uid}`;
+    return user;
+  });
+
+  // We need done data for all users — listen once
+  get(ref(db,"hw321/done")).then(snap => {
+    const allDone = snap.val() || {};
+    const entries = Object.values(allUsers)
+      .filter(u=>!u.isAdmin)
+      .map(user => {
+        const userDone = allDone[user.uid] || {};
+        const doneCount = allHWList.filter(hw=>userDone[hw.id]).length;
+        const total = allHWList.length;
+        return { ...user, doneCount, total, pct: total>0?Math.round(doneCount/total*100):0, doneMap: userDone };
+      })
+      .sort((a,b)=>b.doneCount-a.doneCount||b.pct-a.pct);
+
+    const maxDone = entries[0]?.doneCount||1;
+    const rankIcons = ["🥇","🥈","🥉"];
+    const rankColors = [COLORS[3],COLORS[5],COLORS[7]];
+
+    document.getElementById("leaderboardList").innerHTML = entries.length===0
+      ? `<div class="empty-state"><div class="empty-icon">🏆</div><div class="empty-text">ยังไม่มีนักเรียนในระบบ</div></div>`
+      : entries.map((u,i) => {
+          const isMe = u.uid===currentUser.uid;
+          const doneTitles = allHWList.filter(hw=>u.doneMap[hw.id]).map(hw=>hw.subjectCode||hw.subject||"?");
+          const pendingTitles = allHWList.filter(hw=>!u.doneMap[hw.id]).map(hw=>hw.subjectCode||hw.subject||"?");
+          return `
+            <div class="lb-item ${isMe?"me":""}">
+              <div class="lb-rank" style="color:${rankColors[i]||"var(--text3)"}">${rankIcons[i]||`#${i+1}`}</div>
+              <div class="lb-avatar" style="background:linear-gradient(135deg,${avatarColor(u.name)},${avatarColor(u.name+"z")})">${initials(u.name)}</div>
+              <div style="flex:1;min-width:0">
+                <div class="lb-name">${u.name}${isMe?" (ฉัน)":""}</div>
+                <div class="lb-bar-wrap"><div class="lb-bar" style="width:${maxDone>0?Math.round(u.doneCount/maxDone*100):0}%"></div></div>
+                <div class="lb-hw-list" style="margin-top:6px">
+                  ${doneTitles.slice(0,4).map(t=>`<span class="lb-hw-done">✓ ${t}</span>`).join("")}
+                  ${pendingTitles.slice(0,3).map(t=>`<span class="lb-hw-pending">${t}</span>`).join("")}
+                </div>
+              </div>
+              <div class="lb-score">${u.doneCount}<span style="font-size:11px;color:var(--text3)">/${u.total}</span></div>
+            </div>`;
+        }).join("");
+  });
+};
+
+// ──────────────────────────────────────────
+// SCHEDULE PAGE
+// ──────────────────────────────────────────
+const renderSchedule = () => {
+  document.getElementById("scheduleView").innerHTML = DAYS.map(day => `
+    <div class="sch-day">
+      <div class="sch-day-title">📅 วัน${DAY_FULL[DAYS.indexOf(day)]}</div>
+      ${(SCHEDULE[day]||[]).map(s=>`
+        <div class="sch-chip">
+          <div>
+            <div class="sch-chip-name">${s.name}</div>
+            <div class="sch-chip-detail">คาบ ${s.period} · ห้อง ${s.room} · ${s.teacher}</div>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--accent3)">${s.code}</div>
+        </div>`).join("")}
+    </div>`).join("");
+};
+
+// ──────────────────────────────────────────
+// ADMIN PAGE
+// ──────────────────────────────────────────
+const renderAdmin = () => {
+  const allHWList = Object.entries(allHomeworks).map(([id,hw])=>({...hw,id}))
+    .sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+  const students = Object.values(allUsers).filter(u=>!u.isAdmin);
+
+  document.getElementById("adminPanel").innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="admin-badge">ADMIN</div>
+      <span style="font-size:13px;color:var(--text2)">สวัสดี ${currentUser.name}!</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 ภาพรวมห้อง</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="wstat" style="background:var(--surface2);border-radius:12px;padding:12px"><div class="wstat-val" style="color:var(--accent)">${students.length}</div><div class="wstat-label">นักเรียน</div></div>
+        <div class="wstat" style="background:var(--surface2);border-radius:12px;padding:12px"><div class="wstat-val" style="color:var(--accent2)">${allHWList.length}</div><div class="wstat-label">การบ้านทั้งหมด</div></div>
+        <div class="wstat" style="background:var(--surface2);border-radius:12px;padding:12px"><div class="wstat-val" style="color:var(--accent3)">${Object.values(allUsers).filter(u=>Date.now()-u.lastSeen<300000).length}</div><div class="wstat-label">ออนไลน์</div></div>
+      </div>
+    </div>
+
+    <div class="section-divider">📝 การบ้านทั้งหมด</div>
+    ${allHWList.length===0?`<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">ยังไม่มีการบ้าน</div></div>`
+      : allHWList.map(hw=>`
+        <div class="hw-card" style="border-left-color:${hw.target==='all'?'var(--accent2)':'var(--accent3)'}">
+          <div style="flex:1;min-width:0">
+            <div class="hw-subject">${hw.subjectCode||hw.subject||"?"} · ${hw.target==="all"?"📢 ทุกคน":("👤 "+hw.target)}</div>
+            <div class="hw-detail">${hw.detail}</div>
+            ${hw.dueDate?`<div class="hw-due" style="color:var(--text2)">📅 ${fmt(hw.dueDate)}</div>`:""}
+          </div>
+          <div class="hw-actions">
+            <button class="hw-action-btn" onclick="openEditHW('${hw.id}')">✏️</button>
+            <button class="hw-action-btn" onclick="deleteHW('${hw.id}')">🗑️</button>
+          </div>
+        </div>`).join("")}
+
+    <div class="section-divider">👥 นักเรียนในห้อง</div>
+    ${students.length===0?`<div class="empty-state"><div class="empty-icon">👀</div><div class="empty-text">ยังไม่มีนักเรียนเข้าระบบ</div></div>`
+      : students.map(u=>`
+        <div class="admin-user-card" onclick="viewUserDetail('${u.uid}')">
+          <div class="admin-user-row">
+            <div class="lb-avatar" style="width:36px;height:36px;font-size:16px;background:linear-gradient(135deg,${avatarColor(u.name)},${avatarColor(u.name+"x")})">${initials(u.name)}</div>
+            <div style="flex:1">
+              <div class="admin-user-name">${u.name}</div>
+              <div class="admin-user-stats">เข้าล่าสุด ${new Date(u.lastSeen||0).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}</div>
+            </div>
+            <div style="font-size:20px;color:var(--text3)">›</div>
+          </div>
+        </div>`).join("")}`;
+};
+
+window.viewUserDetail = async (uid) => {
+  const user = allUsers[uid];
+  if (!user) return;
+  const doneSnap = await get(ref(db,`hw321/done/${uid}`));
+  const doneMap = doneSnap.val()||{};
+  const allHWList = Object.entries(allHomeworks).filter(([id,hw])=>hw.target==="all"||hw.target===uid).map(([id,hw])=>({...hw,id}));
+  const doneCount = allHWList.filter(hw=>doneMap[hw.id]).length;
+
+  document.getElementById("userDetailTitle").innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="lb-avatar" style="width:44px;height:44px;font-size:20px;background:linear-gradient(135deg,${avatarColor(user.name)},${avatarColor(user.name+"x")})">${initials(user.name)}</div>
+      <div><div>${user.name}</div><div style="font-size:12px;color:var(--text2)">ทำแล้ว ${doneCount}/${allHWList.length}</div></div>
+    </div>`;
+  document.getElementById("userDetailContent").innerHTML = `
+    <div class="progress-bar" style="margin:16px 0"><div class="progress-fill" style="width:${allHWList.length>0?Math.round(doneCount/allHWList.length*100):0}%"></div></div>
+    ${allHWList.map(hw=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:12px;margin-bottom:8px">
+        <div style="width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:${doneMap[hw.id]?"var(--success)":"var(--surface3)"};font-size:13px">${doneMap[hw.id]?"✓":"·"}</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${hw.detail}</div><div style="font-size:11px;color:var(--text3)">${hw.subjectCode||hw.subject||""}</div></div>
+      </div>`).join("")}`;
+  document.getElementById("modalUserDetail").classList.remove("hidden");
+};
+
+// ──────────────────────────────────────────
+// TOGGLE DONE
+// ──────────────────────────────────────────
+window.toggleDone = async (hwId) => {
+  const nowDone = !myDoneMap[hwId];
+  await set(ref(db,`hw321/done/${currentUser.uid}/${hwId}`), nowDone||null);
+  showToast(nowDone?"✅ ทำการบ้านแล้ว! 🎉":"↩️ ยกเลิกแล้ว");
+};
+
+// ──────────────────────────────────────────
+// ADD / EDIT HW
+// ──────────────────────────────────────────
+window.openAddHW = () => {
+  editingHWId = null;
+  document.getElementById("modalHWTitle").textContent="📝 เพิ่มการบ้านใหม่";
+  document.getElementById("hwDetail").value="";
+  document.getElementById("hwDueDate").value="";
+  document.getElementById("hwNote").value="";
+  document.getElementById("editHWId").value="";
+  document.getElementById("customSubjectWrap").style.display="none";
+
+  // Populate subject select
+  const subs = getAllSubjects();
+  document.getElementById("hwSubject").innerHTML =
+    `<option value="">-- เลือกวิชา --</option>`+
+    subs.map(s=>`<option value="${s.code}">${s.code} — ${s.name}</option>`).join("")+
+    `<option value="__custom__">✏️ วิชาอื่น (พิมพ์เอง)</option>`;
+  document.getElementById("hwSubject").onchange = (e) => {
+    document.getElementById("customSubjectWrap").style.display = e.target.value==="__custom__"?"block":"none";
+  };
+
+  // Admin target
+  const targetWrap = document.getElementById("adminTargetWrap");
+  if (currentUser.isAdmin) {
+    targetWrap.style.display="block";
+    const students = Object.values(allUsers).filter(u=>!u.isAdmin);
+    document.getElementById("hwTarget").innerHTML =
+      `<option value="all">📢 ทุกคนในห้อง</option>`+
+      students.map(u=>`<option value="${u.uid}">👤 ${u.name}</option>`).join("");
+  } else targetWrap.style.display="none";
+
+  document.getElementById("modalHW").classList.remove("hidden");
+};
+
+window.openEditHW = (hwId) => {
+  const hw = allHomeworks[hwId];
+  if (!hw) return;
+  editingHWId = hwId;
+  document.getElementById("modalHWTitle").textContent="✏️ แก้ไขการบ้าน";
+  document.getElementById("editHWId").value=hwId;
+
+  const subs = getAllSubjects();
+  const isCustom = !subs.find(s=>s.code===hw.subjectCode);
+  document.getElementById("hwSubject").innerHTML =
+    `<option value="">-- เลือกวิชา --</option>`+
+    subs.map(s=>`<option value="${s.code}" ${s.code===hw.subjectCode?"selected":""}>${s.code} — ${s.name}</option>`).join("")+
+    `<option value="__custom__" ${isCustom?"selected":""}>✏️ วิชาอื่น (พิมพ์เอง)</option>`;
+  document.getElementById("hwSubject").onchange = (e) => {
+    document.getElementById("customSubjectWrap").style.display = e.target.value==="__custom__"?"block":"none";
+  };
+  if (isCustom) { document.getElementById("customSubjectWrap").style.display="block"; document.getElementById("hwSubjectCustom").value=hw.subjectCode||""; }
+  else document.getElementById("customSubjectWrap").style.display="none";
+
+  document.getElementById("hwDetail").value=hw.detail||"";
+  document.getElementById("hwDueDate").value=hw.dueDate||"";
+  document.getElementById("hwNote").value=hw.note||"";
+
+  const targetWrap=document.getElementById("adminTargetWrap");
+  targetWrap.style.display="none";
+  document.getElementById("modalHW").classList.remove("hidden");
+};
+
+window.saveHW = async () => {
+  const subjectCode = document.getElementById("hwSubject").value==="__custom__"
+    ? document.getElementById("hwSubjectCustom").value.trim()
+    : document.getElementById("hwSubject").value;
+  const detail = document.getElementById("hwDetail").value.trim();
+  const dueDate = document.getElementById("hwDueDate").value;
+  const note = document.getElementById("hwNote").value.trim();
+  const target = currentUser.isAdmin ? document.getElementById("hwTarget").value : currentUser.uid;
+
+  if (!detail) { showToast("⚠️ กรุณากรอกรายละเอียดการบ้าน"); return; }
+
+  const data = { subjectCode, detail, dueDate, note, target, addedBy:currentUser.name, createdAt:Date.now() };
+
+  if (editingHWId) {
+    await update(ref(db,`hw321/homeworks/${editingHWId}`), data);
+    showToast("✏️ แก้ไขการบ้านแล้ว!");
+  } else {
+    await push(ref(db,"hw321/homeworks"), data);
+    showToast("✅ เพิ่มการบ้านแล้ว!");
+  }
+  closeModal("modalHW");
+};
+
+window.deleteHW = (hwId) => {
+  confirmAction("ลบการบ้านชิ้นนี้?","🗑️",async()=>{
+    await remove(ref(db,`hw321/homeworks/${hwId}`));
+    showToast("🗑️ ลบแล้ว");
+  });
+};
+
+// ──────────────────────────────────────────
+// TAB SWITCHING
+// ──────────────────────────────────────────
+window.switchTab = (tab, btn) => {
+  activeTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(btn.dataset.page).classList.add("active");
+
+  // FAB — admin only
+  const fab = document.getElementById("fabBtn");
+  if (currentUser.isAdmin && (tab==="all"||tab==="today"||tab==="admin")) fab.classList.remove("hidden");
+  else fab.classList.add("hidden");
+
+  if (tab==="today") renderToday();
+  else if (tab==="all") renderAllHW();
+  else if (tab==="leader") renderLeaderboard();
+  else if (tab==="schedule") renderSchedule();
+  else if (tab==="admin"&&currentUser.isAdmin) renderAdmin();
+};
+
+// ──────────────────────────────────────────
+// USER MENU & LOGOUT
+// ──────────────────────────────────────────
+window.openUserMenu = () => {
+  if (!currentUser) return;
+  const av = document.getElementById("userMenuAvatar");
+  av.textContent = initials(currentUser.name);
+  av.style.background = `linear-gradient(135deg,${avatarColor(currentUser.name)},${avatarColor(currentUser.name+"x")})`;
+  document.getElementById("userMenuName").textContent = currentUser.name;
+  document.getElementById("userMenuRole").textContent = currentUser.isAdmin ? "👑 ผู้ดูแลระบบ (Admin)" : "🎒 นักเรียน ม.1/10";
+  document.getElementById("modalUserMenu").classList.remove("hidden");
+};
+
+window.doLogout = () => {
+  closeModal("modalUserMenu");
+  confirmAction("ออกจากระบบ?", "🚪", () => {
+    localStorage.removeItem("hw321_user");
+    location.reload();
+  });
+};
+
+// ──────────────────────────────────────────
+// BOOT
+// ──────────────────────────────────────────
+const boot = () => {
+  const saved = localStorage.getItem("hw321_user");
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      // Update lastSeen
+      update(ref(db,`hw321/users/${currentUser.uid}`),{lastSeen:Date.now()});
+      enterApp();
+      listenDone();
+    } catch { localStorage.removeItem("hw321_user"); }
+  }
+  // Keyboard enter on setup
+  document.getElementById("nameInput").addEventListener("keydown",e=>{ if(e.key==="Enter") submitName(); });
+};
+
+// Override enterApp to also listenDone
+const _origEnterApp = enterApp;
+const _patchedEnterApp = () => { _origEnterApp(); listenDone(); };
+// Patch submitName to also call listenDone
+const _origSubmitName = window.submitName;
+window.submitName = async () => {
+  const name = document.getElementById("nameInput").value.trim();
+  if (!name) { showToast("⚠️ กรุณาใส่ชื่อก่อนนะ"); return; }
+  const isAdmin = ADMIN_NAMES.includes(name.toLowerCase());
+  const uid = "u_" + name.toLowerCase().replace(/\s+/g,"_");
+  currentUser = { name, isAdmin, uid };
+  localStorage.setItem("hw321_user", JSON.stringify(currentUser));
+  await set(ref(db,`hw321/users/${uid}`),{ name,isAdmin,uid,lastSeen:Date.now() });
+  enterApp();
+  listenDone();
+};
+
+boot();
+setInterval(updateLastSeen, 60000);
+</script>
+</body>
+</html>
