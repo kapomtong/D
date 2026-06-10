@@ -1,6 +1,5 @@
 const FIREBASE_DB_URL = "https://shop-25ffb-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// --- ฟังก์ชันจัดการระบบคีย์บน Firebase ---
 async function getFirebaseKeys() {
     try {
         const res = await fetch(`${FIREBASE_DB_URL}/ngl_spammer_keys.json`);
@@ -15,8 +14,6 @@ async function updateFirebaseKeys(keys) {
         body: JSON.stringify(keys)
     });
 }
-
-// --- ฟังก์ชันจัดการระบบ Blacklist บน Firebase ---
 async function getFirebaseBlacklist() {
     try {
         const res = await fetch(`${FIREBASE_DB_URL}/ngl_blacklist_users.json`);
@@ -31,15 +28,11 @@ async function updateFirebaseBlacklist(list) {
         body: JSON.stringify(list)
     });
 }
-
-// --- ฟังก์ชันดึง Proxy ฟรี ---
 async function fetchFreeProxies() {
     try {
         const res = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all');
         const text = await res.json().catch(() => res.text());
-        if (typeof text === 'string') {
-            return text.split('\r\n').filter(p => p.trim() !== '');
-        }
+        if (typeof text === 'string') return text.split('\r\n').filter(p => p.trim() !== '');
         return [];
     } catch (e) { return []; }
 }
@@ -53,24 +46,32 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
-        const { action, username, question, deviceId, key, targetKey, targetUser } = req.body;
+        const { action, username, question, deviceId, key, targetKey, targetUser, requestedMode } = req.body;
 
-        // โหลดข้อมูลจาก Firebase ชนิดขนาน
         let allowedKeys = await getFirebaseKeys();
         let blacklistUsers = await getFirebaseBlacklist();
 
         // ==========================================
-        // 🤫 [ADMIN CONTROL ZONE] (เปิดผ่านคำสั่ง mnn หน้าบ้าน)
+        // 🤫 [ADMIN CONTROL ZONE]
         // ==========================================
-        
-        // --- การจัดการคีย์ ---
         if (action === 'admin_get_keys') {
             return res.status(200).json({ success: true, keys: allowedKeys, blacklist: blacklistUsers });
         }
         if (action === 'admin_add_key') {
-            allowedKeys[targetKey] = { usedBy: "none" };
+            // เพิ่มฟิลด์ isSpeedAllowed: false เป็นค่าเริ่มต้นเมื่อสร้างคีย์ใหม่
+            allowedKeys[targetKey] = { usedBy: "none", isSpeedAllowed: false };
             await updateFirebaseKeys(allowedKeys);
-            return res.status(200).json({ success: true, message: `➕ สร้างคีย์ [ ${targetKey} ] สำเร็จ!` });
+            return res.status(200).json({ success: true, message: `➕ สร้างคีย์ [ ${targetKey} ] สำเร็จ! (เริ่มต้น: โหมดปกติ)` });
+        }
+        // ฟังก์ชั่นใหม่สำหรับเปิด/ปิด สิทธิ์โหมดเร็วให้คีย์นั้นๆ
+        if (action === 'admin_toggle_speed') {
+            if (allowedKeys[targetKey]) {
+                const currentStatus = allowedKeys[targetKey].isSpeedAllowed || false;
+                allowedKeys[targetKey].isSpeedAllowed = !currentStatus;
+                await updateFirebaseKeys(allowedKeys);
+                return res.status(200).json({ success: true, message: `⚡ คีย์ [ ${targetKey} ] -> โหมดเร็ว: ${!currentStatus ? '🔓 อนุญาตแล้ว' : '🔒 บล็อกโหมดเร็ว'}` });
+            }
+            return res.status(404).json({ error: 'ไม่พบคีย์นี้ในระบบ' });
         }
         if (action === 'admin_delete_key') {
             if (allowedKeys[targetKey]) { delete allowedKeys[targetKey]; await updateFirebaseKeys(allowedKeys); }
@@ -80,11 +81,9 @@ export default async function handler(req, res) {
             if (allowedKeys[targetKey]) { allowedKeys[targetKey].usedBy = "none"; await updateFirebaseKeys(allowedKeys); }
             return res.status(200).json({ success: true, message: `🔄 รีเซ็ตล็อกเครื่องสำเร็จ!` });
         }
-
-        // --- การจัดการ Blacklist ---
         if (action === 'admin_add_blacklist') {
             if(!targetUser) return res.status(400).json({ error: 'ระบุชื่อด้วย' });
-            blacklistUsers[targetUser.toLowerCase()] = true; // บันทึกเป็นตัวพิมพ์เล็กป้องกันการเลี่ยง
+            blacklistUsers[targetUser.toLowerCase()] = true;
             await updateFirebaseBlacklist(blacklistUsers);
             return res.status(200).json({ success: true, message: `🚫 แบนเป้าหมาย [ ${targetUser} ] เรียบร้อย!` });
         }
@@ -97,29 +96,34 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 🔒 [SECURITY ZONE] ระบบตรวจสอบสิทธิ์และความปลอดภัย
+        // 🔒 [SECURITY ZONE] ระบบตรวจสอบสิทธิ์
         // ==========================================
-        
-        // 1. ตรวจสอบ Blacklist Username (ถ้าชื่อโดนแบน จะยิงไม่ได้เด็ดขาด)
         if (username && blacklistUsers[username.toLowerCase()]) {
-            return res.status(403).json({ error: 'USERNAME_IS_BLACKLISTED (ชื่อนี้ถูกแบนโดยผู้พัฒนา)' });
+            return res.status(403).json({ error: 'USERNAME_IS_BLACKLISTED (ชื่อนี้ถูกแบน)' });
         }
 
-        // 2. ตรวจสอบ License Key
         const isPermanentKey = (key === 'admin' || key === 'mhon');
+        let keyData = allowedKeys[key];
+
         if (!isPermanentKey) {
-            if (!allowedKeys[key]) return res.status(403).json({ error: 'คีย์ไม่ถูกต้องหรือหมดอายุ' });
-            if (allowedKeys[key].usedBy && allowedKeys[key].usedBy !== "none" && allowedKeys[key].usedBy !== deviceId) {
+            if (!keyData) return res.status(403).json({ error: 'คีย์ไม่ถูกต้องหรือหมดอายุ' });
+            
+            // ตรวจสอบสิทธิ์โหมดเร็ว (Cyber Gun)
+            if (requestedMode === 'cyber' && !keyData.isSpeedAllowed) {
+                return res.status(403).json({ error: 'SPEED_MODE_DENIED (คีย์ของคุณไม่ได้รับอนุญาตให้ใช้โหมดเร็ว ติดต่อแอดมิน)' });
+            }
+
+            if (keyData.usedBy && keyData.usedBy !== "none" && keyData.usedBy !== deviceId) {
                 return res.status(403).json({ error: 'คีย์นี้ถูกใช้งานไปแล้วกับเครื่องอื่น' });
             }
-            if (!allowedKeys[key].usedBy || allowedKeys[key].usedBy === "none") {
+            if (!keyData.usedBy || keyData.usedBy === "none") {
                 allowedKeys[key].usedBy = deviceId;
                 await updateFirebaseKeys(allowedKeys);
             }
         }
 
         // ==========================================
-        // 🚀 [SPAMMER ZONE] ส่งข้อความผ่านพร็อกซี่สลับ IP
+        // 🚀 [SPAMMER ZONE]
         // ==========================================
         const userAgents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
