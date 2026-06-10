@@ -1,24 +1,34 @@
-// ฟังก์ชันสำหรับเชื่อมต่อและส่งข้อมูลเข้า Firebase Realtime Database ผ่าน REST API (เนื่องจากรันบน Serverless เบาและเสถียรที่สุด)
 const FIREBASE_DB_URL = "https://shop-25ffb-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// ดึงคีย์ทั้งหมดจาก Firebase
 async function getFirebaseKeys() {
     try {
         const res = await fetch(`${FIREBASE_DB_URL}/ngl_spammer_keys.json`);
         const data = await res.json();
         return data || {};
-    } catch (e) {
-        return {};
-    }
+    } catch (e) { return {}; }
 }
 
-// อัปเดตคีย์เข้า Firebase
 async function updateFirebaseKeys(keys) {
     await fetch(`${FIREBASE_DB_URL}/ngl_spammer_keys.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(keys)
     });
+}
+
+// ฟังก์ชันสำหรับดึงรายชื่อ Free Proxy มาใช้สลับ IP
+async function fetchFreeProxies() {
+    try {
+        // ดึงข้อมูล Proxy ฟรีจาก API สาธารณะ (รองรับโปรโตคอล HTTP/HTTPS)
+        const res = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all');
+        const text = await res.json().catch(() => res.text());
+        if (typeof text === 'string') {
+            return text.split('\r\n').filter(p => p.trim() !== '');
+        }
+        return [];
+    } catch (e) {
+        return [];
+    }
 }
 
 export default async function handler(req, res) {
@@ -31,71 +41,61 @@ export default async function handler(req, res) {
 
     try {
         const { action, username, question, deviceId, key, targetKey } = req.body;
-
-        // ดึงข้อมูลคีย์ปัจจุบันจาก Firebase มาเตรียมพร้อมใช้งาน
         let allowedKeys = await getFirebaseKeys();
 
-        // ==========================================
-        // [ZONE ลับ] สำหรับแอดมิน (เมื่อใช้ username เป็น mnn)
-        // ==========================================
-        if (action === 'admin_get_keys') {
-            return res.status(200).json({ success: true, keys: allowedKeys });
-        }
-
+        // Admin Zone
+        if (action === 'admin_get_keys') return res.status(200).json({ success: true, keys: allowedKeys });
         if (action === 'admin_add_key') {
-            allowedKeys[targetKey] = { usedBy: "none" }; // กำหนดค่าเริ่มต้นเป็นข้อความ เพื่อไม่ให้ Firebase บันทึกเป็นค่าว่าง
+            allowedKeys[targetKey] = { usedBy: "none" };
             await updateFirebaseKeys(allowedKeys);
-            return res.status(200).json({ success: true, message: `➕ สร้างคีย์ [ ${targetKey} ] ลง Firebase สำเร็จ!` });
+            return res.status(200).json({ success: true, message: `➕ สร้างคีย์ [ ${targetKey} ] สำเร็จ!` });
         }
-
         if (action === 'admin_delete_key') {
             if (allowedKeys[targetKey]) {
                 delete allowedKeys[targetKey];
                 await updateFirebaseKeys(allowedKeys);
-                return res.status(200).json({ success: true, message: `❌ ลบคีย์ [ ${targetKey} ] ออกจากคลาวด์แล้ว` });
+                return res.status(200).json({ success: true, message: `❌ ลบคีย์ [ ${targetKey} ] เรียบร้อย` });
             }
-            return res.status(404).json({ error: 'ไม่พบคีย์นี้' });
+            return res.status(404).json({ error: 'ไม่พบคีย์' });
         }
-
         if (action === 'admin_reset_key') {
             if (allowedKeys[targetKey]) {
-                allowedKeys[targetKey].usedBy = "none"; // ล้างการล็อกเครื่อง
+                allowedKeys[targetKey].usedBy = "none";
                 await updateFirebaseKeys(allowedKeys);
-                return res.status(200).json({ success: true, message: `🔄 ปลดล็อกเครื่องสำหรับคีย์ [ ${targetKey} ] เรียบร้อย!` });
+                return res.status(200).json({ success: true, message: `🔄 ปลดล็อกคีย์ [ ${targetKey} ] สำเร็จ!` });
             }
-            return res.status(404).json({ error: 'ไม่พบคีย์นี้ในฐานข้อมูล' });
+            return res.status(404).json({ error: 'ไม่พบคีย์' });
         }
 
-        // ==========================================
-        // [ZONE ใช้งานปกติ] ระบบตรวจสอบคีย์และการส่งข้อความ
-        // ==========================================
-        
+        // Check License Key
         const isPermanentKey = (key === 'admin' || key === 'mhon');
-
         if (!isPermanentKey) {
-            // ตรวจสอบว่ามีคีย์นี้ใน Firebase ไหม
-            if (!allowedKeys[key]) {
-                return res.status(403).json({ error: 'คีย์ไม่ถูกต้องหรือหมดอายุ' });
-            }
-
-            // ถ้ามีคนเปิดซิงล็อกเครื่องอื่นไปแล้ว
+            if (!allowedKeys[key]) return res.status(403).json({ error: 'คีย์ไม่ถูกต้องหรือหมดอายุ' });
             if (allowedKeys[key].usedBy && allowedKeys[key].usedBy !== "none" && allowedKeys[key].usedBy !== deviceId) {
                 return res.status(403).json({ error: 'คีย์นี้ถูกใช้งานไปแล้วกับเครื่องอื่น' });
             }
-
-            // ถ้าเป็นเครื่องแรกที่กดรัน ให้ทำการบันทึกไอดีเครื่องลง Firebase ทันที
             if (!allowedKeys[key].usedBy || allowedKeys[key].usedBy === "none") {
                 allowedKeys[key].usedBy = deviceId;
                 await updateFirebaseKeys(allowedKeys);
             }
         }
 
-        // ตัวแปรส่งข้อความจำลองเข้า NGL
+        // สุ่ม User-Agent เพื่อพรางลายนิ้วมือบราวเซอร์
         const userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36'
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
         ];
         const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+        // จัดเตรียมชุด IP และจำลอง Header เพื่อส่งคำขอให้แนบเนียนที่สุด
+        const proxyList = await fetchFreeProxies();
+        let randomIP = `${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
+        
+        if (proxyList.length > 0) {
+            const selectedProxy = proxyList[Math.floor(Math.random() * proxyList.length)];
+            randomIP = selectedProxy.split(':')[0]; // ดึงเอาเฉพาะไอพีจาก Proxy มาพรางตาในคำขอ
+        }
 
         const response = await fetch('https://ngl.link/api/submit', {
             method: 'POST',
@@ -104,7 +104,9 @@ export default async function handler(req, res) {
                 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'user-agent': randomUA,
                 'x-requested-with': 'XMLHttpRequest',
-                'referer': `https://ngl.link/${username}`
+                'referer': `https://ngl.link/${username}`,
+                'X-Forwarded-For': randomIP,
+                'Client-IP': randomIP
             },
             body: new URLSearchParams({
                 'username': username,
@@ -118,7 +120,7 @@ export default async function handler(req, res) {
         if (response.ok) {
             return res.status(200).json({ success: true });
         } else {
-            return res.status(response.status).json({ error: `NGL_ERROR_${response.status}` });
+            return res.status(response.status).json({ error: `NGL_RESPONSE_${response.status}` });
         }
 
     } catch (error) {
