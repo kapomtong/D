@@ -83,7 +83,7 @@
             </div>
 
             <div id="logBox" class="bg-black rounded-xl p-3 text-[11px] max-h-28 overflow-y-auto text-zinc-500 space-y-1 border border-zinc-900">
-                </div>
+            </div>
         </div>
 
     </div>
@@ -145,8 +145,8 @@
 
             let successCount = 0;
 
-            // นำส่งข้อมูลผ่านเกตเวย์ตัวกลางเพื่อไม่ให้ติดบล็อกจากตัวเบราว์เซอร์ต้นทาง
-            const endpointGateway = 'https://cors-anywhere.herokuapp.com/https://ngl.link/api/submit';
+            // แก้ไขตรงนี้: เปลี่ยนไปยิงเข้าหา Vercel Proxy ภายในเซิร์ฟเวอร์เพื่อไม่ให้ติดปัญหา 403 และ CORS
+            const endpointGateway = '/api/submit';
 
             for (let i = 0; i < count; i++) {
                 if (shouldStop) {
