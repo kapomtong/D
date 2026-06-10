@@ -1,7 +1,8 @@
 {
-  "version": 2,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/public/$1" }
+    {
+      "source": "/api/submit",
+      "destination": "https://ngl.link/api/submit"
+    }
   ]
 }
