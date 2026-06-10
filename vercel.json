@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/submit",
-      "destination": "https://ngl.link/api/submit"
-    }
-  ]
-}
