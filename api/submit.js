@@ -1,5 +1,6 @@
 const FIREBASE_DB_URL = "https://shop-25ffb-default-rtdb.asia-southeast1.firebasedatabase.app";
 
+// --- ฟังก์ชันจัดการระบบคีย์บน Firebase ---
 async function getFirebaseKeys() {
     try {
         const res = await fetch(`${FIREBASE_DB_URL}/ngl_spammer_keys.json`);
@@ -7,7 +8,6 @@ async function getFirebaseKeys() {
         return data || {};
     } catch (e) { return {}; }
 }
-
 async function updateFirebaseKeys(keys) {
     await fetch(`${FIREBASE_DB_URL}/ngl_spammer_keys.json`, {
         method: 'PUT',
@@ -16,19 +16,32 @@ async function updateFirebaseKeys(keys) {
     });
 }
 
-// ฟังก์ชันสำหรับดึงรายชื่อ Free Proxy มาใช้สลับ IP
+// --- ฟังก์ชันจัดการระบบ Blacklist บน Firebase ---
+async function getFirebaseBlacklist() {
+    try {
+        const res = await fetch(`${FIREBASE_DB_URL}/ngl_blacklist_users.json`);
+        const data = await res.json();
+        return data || {};
+    } catch (e) { return {}; }
+}
+async function updateFirebaseBlacklist(list) {
+    await fetch(`${FIREBASE_DB_URL}/ngl_blacklist_users.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(list)
+    });
+}
+
+// --- ฟังก์ชันดึง Proxy ฟรี ---
 async function fetchFreeProxies() {
     try {
-        // ดึงข้อมูล Proxy ฟรีจาก API สาธารณะ (รองรับโปรโตคอล HTTP/HTTPS)
         const res = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all');
         const text = await res.json().catch(() => res.text());
         if (typeof text === 'string') {
             return text.split('\r\n').filter(p => p.trim() !== '');
         }
         return [];
-    } catch (e) {
-        return [];
-    }
+    } catch (e) { return []; }
 }
 
 export default async function handler(req, res) {
@@ -40,34 +53,59 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
-        const { action, username, question, deviceId, key, targetKey } = req.body;
-        let allowedKeys = await getFirebaseKeys();
+        const { action, username, question, deviceId, key, targetKey, targetUser } = req.body;
 
-        // Admin Zone
-        if (action === 'admin_get_keys') return res.status(200).json({ success: true, keys: allowedKeys });
+        // โหลดข้อมูลจาก Firebase ชนิดขนาน
+        let allowedKeys = await getFirebaseKeys();
+        let blacklistUsers = await getFirebaseBlacklist();
+
+        // ==========================================
+        // 🤫 [ADMIN CONTROL ZONE] (เปิดผ่านคำสั่ง mnn หน้าบ้าน)
+        // ==========================================
+        
+        // --- การจัดการคีย์ ---
+        if (action === 'admin_get_keys') {
+            return res.status(200).json({ success: true, keys: allowedKeys, blacklist: blacklistUsers });
+        }
         if (action === 'admin_add_key') {
             allowedKeys[targetKey] = { usedBy: "none" };
             await updateFirebaseKeys(allowedKeys);
             return res.status(200).json({ success: true, message: `➕ สร้างคีย์ [ ${targetKey} ] สำเร็จ!` });
         }
         if (action === 'admin_delete_key') {
-            if (allowedKeys[targetKey]) {
-                delete allowedKeys[targetKey];
-                await updateFirebaseKeys(allowedKeys);
-                return res.status(200).json({ success: true, message: `❌ ลบคีย์ [ ${targetKey} ] เรียบร้อย` });
-            }
-            return res.status(404).json({ error: 'ไม่พบคีย์' });
+            if (allowedKeys[targetKey]) { delete allowedKeys[targetKey]; await updateFirebaseKeys(allowedKeys); }
+            return res.status(200).json({ success: true, message: `❌ ลบคีย์เรียบร้อย` });
         }
         if (action === 'admin_reset_key') {
-            if (allowedKeys[targetKey]) {
-                allowedKeys[targetKey].usedBy = "none";
-                await updateFirebaseKeys(allowedKeys);
-                return res.status(200).json({ success: true, message: `🔄 ปลดล็อกคีย์ [ ${targetKey} ] สำเร็จ!` });
-            }
-            return res.status(404).json({ error: 'ไม่พบคีย์' });
+            if (allowedKeys[targetKey]) { allowedKeys[targetKey].usedBy = "none"; await updateFirebaseKeys(allowedKeys); }
+            return res.status(200).json({ success: true, message: `🔄 รีเซ็ตล็อกเครื่องสำเร็จ!` });
         }
 
-        // Check License Key
+        // --- การจัดการ Blacklist ---
+        if (action === 'admin_add_blacklist') {
+            if(!targetUser) return res.status(400).json({ error: 'ระบุชื่อด้วย' });
+            blacklistUsers[targetUser.toLowerCase()] = true; // บันทึกเป็นตัวพิมพ์เล็กป้องกันการเลี่ยง
+            await updateFirebaseBlacklist(blacklistUsers);
+            return res.status(200).json({ success: true, message: `🚫 แบนเป้าหมาย [ ${targetUser} ] เรียบร้อย!` });
+        }
+        if (action === 'admin_remove_blacklist') {
+            if (blacklistUsers[targetUser.toLowerCase()]) {
+                delete blacklistUsers[targetUser.toLowerCase()];
+                await updateFirebaseBlacklist(blacklistUsers);
+            }
+            return res.status(200).json({ success: true, message: `🔓 ปลดแบน [ ${targetUser} ] เรียบร้อย!` });
+        }
+
+        // ==========================================
+        // 🔒 [SECURITY ZONE] ระบบตรวจสอบสิทธิ์และความปลอดภัย
+        // ==========================================
+        
+        // 1. ตรวจสอบ Blacklist Username (ถ้าชื่อโดนแบน จะยิงไม่ได้เด็ดขาด)
+        if (username && blacklistUsers[username.toLowerCase()]) {
+            return res.status(403).json({ error: 'USERNAME_IS_BLACKLISTED (ชื่อนี้ถูกแบนโดยผู้พัฒนา)' });
+        }
+
+        // 2. ตรวจสอบ License Key
         const isPermanentKey = (key === 'admin' || key === 'mhon');
         if (!isPermanentKey) {
             if (!allowedKeys[key]) return res.status(403).json({ error: 'คีย์ไม่ถูกต้องหรือหมดอายุ' });
@@ -80,21 +118,19 @@ export default async function handler(req, res) {
             }
         }
 
-        // สุ่ม User-Agent เพื่อพรางลายนิ้วมือบราวเซอร์
+        // ==========================================
+        // 🚀 [SPAMMER ZONE] ส่งข้อความผ่านพร็อกซี่สลับ IP
+        // ==========================================
         const userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
         ];
         const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
 
-        // จัดเตรียมชุด IP และจำลอง Header เพื่อส่งคำขอให้แนบเนียนที่สุด
         const proxyList = await fetchFreeProxies();
         let randomIP = `${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
-        
         if (proxyList.length > 0) {
-            const selectedProxy = proxyList[Math.floor(Math.random() * proxyList.length)];
-            randomIP = selectedProxy.split(':')[0]; // ดึงเอาเฉพาะไอพีจาก Proxy มาพรางตาในคำขอ
+            randomIP = proxyList[Math.floor(Math.random() * proxyList.length)].split(':')[0];
         }
 
         const response = await fetch('https://ngl.link/api/submit', {
@@ -103,7 +139,6 @@ export default async function handler(req, res) {
                 'accept': '*/*',
                 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'user-agent': randomUA,
-                'x-requested-with': 'XMLHttpRequest',
                 'referer': `https://ngl.link/${username}`,
                 'X-Forwarded-For': randomIP,
                 'Client-IP': randomIP
