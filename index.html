@@ -196,7 +196,7 @@
             if (val.trim() === 'mnn') {
                 panel.classList.remove('hidden');
                 loadDatabaseData();
-                if(!dashboardInterval) dashboardInterval = setInterval(loadDatabaseData, 3000); // อัปเดตบอร์ดอัตโนมัติทุกๆ 3 วินาที
+                if(!dashboardInterval) dashboardInterval = setInterval(loadDatabaseData, 3000);
             } else if(val.trim() === '') {
                 panel.classList.add('hidden');
                 clearInterval(dashboardInterval);
@@ -290,7 +290,7 @@
             let successCount = 0; let currentIndex = 0;
             const myMachineId = getOrGenerateDeviceId();
 
-            // 💥 ขยายพลังทำลายโหมด Cyber เป็น 15 ท่อขนานทะลวงพิกัด
+            // 💥 โหมดเร็วเปิด 15 ท่อคู่ขนานทะลวงพิกัด
             const CONCURRENCY_LIMIT = speedMode === 'cyber' ? 15 : 1;
 
             async function sendWorker() {
@@ -307,16 +307,16 @@
                                 'username': username, 
                                 'question': message, 
                                 'deviceId': myMachineId,
-                                'requestedMode': speedMode
+                                'requestedMode': speedMode,
+                                'isFirstPacket': (taskIndex === 0) // ตรวจเช็กนัดแรกเพื่อประหยัดโหลด Firebase
                             })
                         });
                         const result = await response.json();
 
-                        // 🛑 ดักจับว่าโดนแอดมินสั่ง Kill Switch ล็อกจากหลังบ้านหรือไม่
                         if(result.forceStopped) {
                             addLog(`🚨 ปฏิเสธระบบ: แอดมินหลักสั่งระงับสัญญาณการยิงของคุณแล้ว!`);
                             shouldStop = true;
-                            break;
+           break;
                         }
 
                         if (response.ok) {
@@ -338,7 +338,6 @@
             for (let i = 0; i < CONCURRENCY_LIMIT; i++) { workers.push(sendWorker()); }
             await Promise.all(workers);
 
-            // แจ้งหลังบ้านว่ายิงเสร็จแล้ว
             await fetch('/api/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
